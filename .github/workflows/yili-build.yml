@@ -64,7 +64,7 @@ jobs:
         working-directory: kernel
         run: |
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s ${{ inputs.ksu_branch }}
-          grep -q "KernelSU" Makefile && grep -rq "KernelSU" fs/Kconfig && ls -d KernelSU && echo "KSU hook installed"
+          grep -q "kernelsu" drivers/Makefile && grep -q "kernelsu" drivers/Kconfig && ls -dL drivers/kernelsu && echo "KSU hook installed"
 
       - name: Build kernel (thin LTO, same defconfig as stock)
         working-directory: kernel
