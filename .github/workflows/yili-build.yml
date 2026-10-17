@@ -35,7 +35,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q bc bison flex libssl-dev libncurses-dev libelf-dev libdwarf-dev \
+          sudo apt-get install -y -q bc bison flex libssl-dev libncurses-dev libelf-dev libdwarf-dev libdw-dev \
             dwarves python3 python-is-python3 curl rsync zip unzip build-essential
           # Ubuntu noble 的 libdwarf-dev 头文件在 libdwarf/ 子目录，内核期望标准路径
           sudo ln -sf /usr/include/libdwarf/dwarf.h /usr/include/dwarf.h
