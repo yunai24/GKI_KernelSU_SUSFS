@@ -79,6 +79,8 @@ jobs:
           export BINDGEN="$(command -v bindgen)"
           export RUST_LIB_SRC="$(rustc --print sysroot)/lib/rustlib/src/rust/library"
           export LIBCLANG_PATH="$CLANG_DIR/lib"
+          # KernelSU main 的 allowlist.h 引用 "uapi/app_profile.h"，实体在 KSU 仓库根 uapi/
+          export KCFLAGS="-I$GITHUB_WORKSPACE/kernel/KernelSU"
           make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig
           ./scripts/config --file out/.config -e KSU
           make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 olddefconfig
