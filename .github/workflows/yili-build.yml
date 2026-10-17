@@ -1,0 +1,101 @@
+name: Yili Kernel (MiCode 6.12.38 + KernelSU)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ksu_branch:
+        description: "KernelSU 分支/标签 (main / dev / tag)"
+        required: true
+        default: "main"
+
+permissions:
+  contents: read
+
+env:
+  CLANG_DIR: /home/runner/clang
+
+jobs:
+  build:
+    name: yili 6.12.38 + KSU
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Maximize disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+          sudo swapoff -a || true
+          sudo fallocate -l 6G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          df -h /
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q bc bison flex libssl-dev libncurses-dev libelf-dev \
+            dwarves python3 python-is-python3 curl rsync zip unzip build-essential
+
+      - name: Setup Clang r536225 (matches yili build.config.constants)
+        run: |
+          mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
+          curl -sL --retry 3 \
+            "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r536225.tar.gz" \
+            -o clang.tar.gz
+          tar -xf clang.tar.gz && rm clang.tar.gz
+          "$CLANG_DIR/bin/clang" --version | head -1
+
+      - name: Setup Rust 1.82.0 + bindgen 0.69.5
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.82.0
+          . "$HOME/.cargo/env"
+          rustup component add rust-src
+          cargo install --locked bindgen-cli --version 0.69.5
+          rustc --version && bindgen --version
+
+      - name: Clone yili kernel source (MiCode yili-w-oss)
+        run: |
+          git clone --depth=1 https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git kernel -b yili-w-oss
+          grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
+
+      - name: Integrate KernelSU (official GKI setup.sh)
+        working-directory: kernel
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s ${{ inputs.ksu_branch }}
+          grep -rq "KernelSU" fs/Makefile && echo "KSU hook installed"
+
+      - name: Build kernel (thin LTO, same defconfig as stock)
+        working-directory: kernel
+        run: |
+          . "$HOME/.cargo/env"
+          export PATH="$CLANG_DIR/bin:$PATH"
+          export RUSTC="$(command -v rustc)"
+          export BINDGEN="$(command -v bindgen)"
+          export RUST_LIB_SRC="$(rustc --print sysroot)/lib/rustlib/src/rust/library"
+          export LIBCLANG_PATH="$CLANG_DIR/lib"
+          make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig
+          ./scripts/config --file out/.config -e KSU
+          make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 olddefconfig
+          grep -E "^CONFIG_(KSU|RUST|LOCALVERSION)=" out/.config
+          make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 -j"$(nproc)"
+
+      - name: Pack AnyKernel3
+        run: |
+          git clone --depth=1 https://github.com/WildKernels/AnyKernel3.git -b gki-2.0
+          rm -rf AnyKernel3/.git
+          cp kernel/out/arch/arm64/boot/Image AnyKernel3/Image
+          sed -i -E 's/^do.devicecheck=.*/do.devicecheck=0/' AnyKernel3/anykernel.sh
+          sed -i -E 's/^block=.*/block=boot/' AnyKernel3/anykernel.sh
+          sed -i -E 's/^is_slot_device=.*/is_slot_device=auto/' AnyKernel3/anykernel.sh
+          grep -E "^(do.devicecheck|block|is_slot_device)" AnyKernel3/anykernel.sh
+          cd AnyKernel3 && zip -r9 ../yili-6.12.38-KSU-${{ inputs.ksu_branch }}-AnyKernel3.zip . -x ".git*" && cd ..
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: yili-61238-KSU-${{ inputs.ksu_branch }}
+          path: |
+            yili-6.12.38-KSU-*-AnyKernel3.zip
+            kernel/out/arch/arm64/boot/Image
