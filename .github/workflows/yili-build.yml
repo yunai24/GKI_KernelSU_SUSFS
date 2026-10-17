@@ -35,7 +35,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q bc bison flex libssl-dev libncurses-dev libelf-dev \
+          sudo apt-get install -y -q bc bison flex libssl-dev libncurses-dev libelf-dev libdwarf-dev \
             dwarves python3 python-is-python3 curl rsync zip unzip build-essential
 
       - name: Setup Clang r536225 (matches yili build.config.constants)
