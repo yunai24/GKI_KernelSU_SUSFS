@@ -79,8 +79,9 @@ jobs:
           export BINDGEN="$(command -v bindgen)"
           export RUST_LIB_SRC="$(rustc --print sysroot)/lib/rustlib/src/rust/library"
           export LIBCLANG_PATH="$CLANG_DIR/lib"
-          # KernelSU main 的 allowlist.h 引用 "uapi/app_profile.h"，实体在 KSU 仓库根 uapi/
-          export KCFLAGS="-I$GITHUB_WORKSPACE/kernel/KernelSU"
+          # KSU Kbuild 的 KSU_KERNEL_DIR 在 O=out 相对路径下拼出 ../../ 双重前缀失效，
+          # 直接用绝对路径覆盖它全部三个 include 根：仓库根(uapi/)、kernel/、kernel/include/
+          export KCFLAGS="-I$GITHUB_WORKSPACE/kernel/KernelSU -I$GITHUB_WORKSPACE/kernel/KernelSU/kernel -I$GITHUB_WORKSPACE/kernel/KernelSU/kernel/include"
           make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig
           ./scripts/config --file out/.config -e KSU
           make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 olddefconfig
